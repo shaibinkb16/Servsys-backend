@@ -3,10 +3,6 @@ from typing import Optional
 from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.database import Database
-from dotenv import load_dotenv
-
-# Load environment variables from .env if present
-load_dotenv()
 
 _mongo_client: Optional[MongoClient] = None
 _database: Optional[Database] = None
@@ -16,13 +12,14 @@ def setup() -> None:
     """Initialize the MongoDB client and database, and ensure indexes exist."""
     global _mongo_client, _database
 
-    mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+    mongodb_url = os.getenv("MONGODB_URL")  # Required on Render
     database_name = os.getenv("DATABASE_NAME", "subscription_manager")
 
-    _mongo_client = MongoClient(mongodb_url)
+    # Always connect with TLS (Atlas requires it)
+    _mongo_client = MongoClient(mongodb_url, tls=True, tlsAllowInvalidCertificates=False)
     _database = _mongo_client[database_name]
 
-    # Ensure indexes for performance and constraints
+    # Ensure indexes
     users: Collection = _database["users"]
     subscriptions: Collection = _database["subscriptions"]
 
