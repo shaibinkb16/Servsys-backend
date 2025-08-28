@@ -24,7 +24,13 @@ app.add_middleware(
 	allow_headers=["*"],
 )
 
-database.setup()
+# Initialize database with error handling
+try:
+    database.setup()
+except Exception as e:
+    print(f"Failed to initialize database: {e}")
+    print("The application will start but database operations will fail.")
+    print("Please ensure MongoDB is running and properly configured.")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -56,41 +62,54 @@ async def get_current_admin(current_user: UserInDB = Depends(get_current_user)) 
 def _seed_demo_users() -> None:
 	if os.getenv("SEED_DEMO_USERS", "true").lower() != "true":
 		return
-	seed = [
-		UserCreate(email="admin@demo.com", password="Admin@123", is_admin=True),
-		UserCreate(email="alice@demo.com", password="Alice@123", is_admin=False),
-		UserCreate(email="bob@demo.com", password="Bob@123", is_admin=False),
-	]
-	for u in seed:
-		if not crud.get_user_by_email(u.email):
-			crud.create_user(u)
+	try:
+		seed = [
+			UserCreate(email="admin@demo.com", password="Admin@123", is_admin=True),
+			UserCreate(email="alice@demo.com", password="Alice@123", is_admin=False),
+			UserCreate(email="bob@demo.com", password="Bob@123", is_admin=False),
+		]
+		for u in seed:
+			if not crud.get_user_by_email(u.email):
+				crud.create_user(u)
+	except Exception as e:
+		print(f"Failed to seed demo users: {e}")
+		raise
 
 
 def _seed_demo_subscriptions() -> None:
 	if os.getenv("SEED_DEMO_SUBSCRIPTIONS", "true").lower() != "true":
 		return
-	from .database import get_db
-	db = get_db()
-	if db.subscriptions.estimated_document_count() > 0:
-		return
-	admin = crud.get_user_by_email("admin@demo.com")
-	alice = crud.get_user_by_email("alice@demo.com")
-	bob = crud.get_user_by_email("bob@demo.com")
-	if not (admin and alice and bob):
-		return
-	# Create a few sample subscriptions
-	seven_days = datetime.utcnow().replace(microsecond=0)
-	samples = [
-		(SubscriptionCreate(service_name="Netflix", cost=15.99, billing_cycle="monthly", renewal_date=seven_days, notes="4K plan", is_shared=True, visibility="shared"), str(admin.id)),
-		(SubscriptionCreate(service_name="Spotify", cost=9.99, billing_cycle="monthly", renewal_date=seven_days, notes="", is_shared=False, visibility="private"), str(alice.id)),
-		(SubscriptionCreate(service_name="Domain", cost=12.0, billing_cycle="yearly", renewal_date=seven_days, notes="example.com", is_shared=False, visibility="private"), str(bob.id)),
-	]
-	for sub, owner in samples:
-		crud.create_subscription(sub, owner)
+	try:
+		from .database import get_db
+		db = get_db()
+		if db.subscriptions.estimated_document_count() > 0:
+			return
+		admin = crud.get_user_by_email("admin@demo.com")
+		alice = crud.get_user_by_email("alice@demo.com")
+		bob = crud.get_user_by_email("bob@demo.com")
+		if not (admin and alice and bob):
+			return
+		# Create a few sample subscriptions
+		seven_days = datetime.utcnow().replace(microsecond=0)
+		samples = [
+			(SubscriptionCreate(service_name="Netflix", cost=15.99, billing_cycle="monthly", renewal_date=seven_days, notes="4K plan", is_shared=True, visibility="shared"), str(admin.id)),
+			(SubscriptionCreate(service_name="Spotify", cost=9.99, billing_cycle="monthly", renewal_date=seven_days, notes="", is_shared=False, visibility="private"), str(alice.id)),
+			(SubscriptionCreate(service_name="Domain", cost=12.0, billing_cycle="yearly", renewal_date=seven_days, notes="example.com", is_shared=False, visibility="private"), str(bob.id)),
+		]
+		for sub, owner in samples:
+			crud.create_subscription(sub, owner)
+	except Exception as e:
+		print(f"Failed to seed demo subscriptions: {e}")
+		raise
 
 
-_seed_demo_users()
-_seed_demo_subscriptions()
+# Seed demo data only if database is available
+try:
+    _seed_demo_users()
+    _seed_demo_subscriptions()
+except Exception as e:
+    print(f"⚠️  Demo data seeding failed: {e}")
+    print("This is normal if MongoDB is not running.")
 
 
 @app.post("/token", response_model=Token)
