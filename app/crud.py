@@ -132,9 +132,17 @@ def update_subscription(subscription_id: str, subscription: SubscriptionUpdate) 
 	return Subscription(**updated)
 
 
-def delete_subscription(subscription_id: str) -> None:
-	db = get_db()
-	db.subscriptions.delete_one({"_id": ObjectId(subscription_id)})
+def delete_subscription(subscription_id: str, user_id: str, is_admin: bool) -> None:
+    db = get_db()
+    subscription = db.subscriptions.find_one({"_id": ObjectId(subscription_id)})
+    if not subscription:
+        raise ValueError("Subscription not found")
+
+    # Check permissions if the user is not an admin
+    if not is_admin and str(subscription["owner_id"]) != user_id:
+        raise PermissionError("Not enough permissions to delete this subscription")
+
+    db.subscriptions.delete_one({"_id": ObjectId(subscription_id)})
 
 
 def get_user_notifications(user_id: str, limit: int = 50) -> List[dict]:
@@ -158,3 +166,18 @@ def get_unread_notification_count(user_id: str) -> int:
 		"user_id": user_id,
 		"is_read": False
 	})
+
+
+def delete_user(user_id: str) -> None:
+    db = get_db()
+    result = db.users.delete_one({"_id": ObjectId(user_id)})
+    if result.deleted_count == 0:
+        raise ValueError("User not found")
+
+
+def get_user_by_id(user_id: str) -> Optional[UserInDB]:
+    db = get_db()
+    data = db.users.find_one({"_id": ObjectId(user_id)})
+    if data:
+        return UserInDB(**data)
+    return None

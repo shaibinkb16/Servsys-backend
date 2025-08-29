@@ -30,7 +30,7 @@ allowed_origins = [origin.strip() for origin in cors_origins.split(",")]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=["*"],  # Replace "*" with specific origins if needed
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -290,6 +290,21 @@ async def check_renewal_notifications_route(background_tasks: BackgroundTasks):
     """Manually trigger renewal notification check (for testing)"""
     background_tasks.add_task(notifications.check_renewal_notifications)
     return {"message": "Renewal check initiated"}
+
+@app.delete("/users/{user_id}")
+async def delete_user_route(user_id: str, current_user = Depends(get_current_admin)):
+    """Delete a user by ID (Admin only)"""
+    try:
+        user = crud.get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        crud.delete_user(user_id)
+        return {"message": "User deleted successfully"}
+    except Exception as e:
+        # Log the error for debugging
+        print(f"Error deleting user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
 # Add this at the very end of the file
 if __name__ == "__main__":
